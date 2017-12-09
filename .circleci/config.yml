@@ -31,7 +31,7 @@ jobs:
       - run:
           name: Build docker image and tag as dev-latest
           command: |
-            bin/jenkins_build.sh
+            bin/build.sh
       - deploy:
           name: Deploy dev-latest tag
           command: |
