@@ -1,0 +1,143 @@
+version: 2
+jobs:
+  build-dev:
+    working_directory: ~
+    environment:
+      - ENV: "dev"
+      - JOB_NAME: "websrv"
+      - CLUSTER: "frontend"
+      - AWS_DEFAULT_REGION: "eu-west-1"
+      - AWS_ACCOUNT_ID: "003425684339"
+      - AWS_ACCOUNT_ID_PROD: "113425684339"
+    docker:
+      - image: docker:17.05.0-ce-git
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run: echo "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID_DEV}" >> $BASH_ENV
+      - run: echo "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY_DEV}" >> $BASH_ENV
+      - run:
+          name: Install dependencies
+          command: |
+            apk add --no-cache \
+              py-pip=9.0.0-r1
+            pip install \
+              awscli==1.11.76
+            apk update
+            apk upgrade
+            apk add bash
+            apk add jq
+            apk add curl
+      - run:
+          name: Build docker image and tag as dev-latest
+          command: |
+            bin/jenkins_build.sh
+      - deploy:
+          name: Deploy dev-latest tag
+          command: |
+            export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID_DEV}
+            export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY_DEV}
+            bash +x bin/ecs-deploy.sh
+      - run:
+          name: Verify deployment status
+          command: |
+            export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID_DEV}
+            export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY_DEV}
+            echo "Wait for service to be stable..."
+            echo "Check status of the deployment here:"
+            echo "https://eu-west-1.console.aws.amazon.com/ecs/home?region=eu-west-1#/clusters/${CLUSTER}/services/${JOB_NAME}/deployments"
+            aws ecs wait services-stable --services ${JOB_NAME} --cluster ${CLUSTER} || exit 1
+            echo "Deployment successful..."
+      - run:
+          name: Promote prod image
+          command: |
+            echo "Promoting image to production"
+            export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID_LIVE}
+            export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY_LIVE}
+            eval $(aws ecr get-login --region eu-west-1)
+            docker tag ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/${JOB_NAME}:dev-latest ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/${JOB_NAME}:live-latest || exit 1
+            docker push 113425684339.dkr.ecr.eu-west-1.amazonaws.com/${JOB_NAME}:live-latest
+
+  test-dev:
+    working_directory: ~
+    environment:
+      - ENV: "dev"
+      - JOB_NAME: "websrv"
+      - CLUSTER: "frontend"
+      - AWS_DEFAULT_REGION: "eu-west-1"
+      - AWS_ACCOUNT_ID: "003425684339"
+    docker:
+      - image: docker:17.05.0-ce-git
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Test dev
+          command: |
+            echo "Performance/Load/System/Compliance tests here!!!"
+
+  build-live:
+    working_directory: ~
+    environment:
+      - ENV: "live"
+      - JOB_NAME: "websrv"
+      - CLUSTER: "frontend"
+      - AWS_DEFAULT_REGION: "eu-west-1"
+      - AWS_ACCOUNT_ID: "113425684339"
+    docker:
+      - image: docker:17.05.0-ce-git
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run: echo "export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID_LIVE}" >> $BASH_ENV
+      - run: echo "export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY_LIVE}" >> $BASH_ENV
+      - run:
+          name: Install dependencies
+          command: |
+            apk add --no-cache \
+              py-pip=9.0.0-r1
+            pip install \
+              awscli==1.11.76
+            apk update
+            apk upgrade
+            apk add bash
+            apk add jq
+      - run:
+          name: Prepare for live deployment
+          command: |
+            echo "Unit tests here"
+            ls -la
+            echo "Testing something here..."
+      - deploy:
+          name: Deploy live-latest tag
+          command: |
+            echo "Deploying image to production"
+            export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID_LIVE}
+            export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY_LIVE}
+            bash +x bin/ecs-deploy.sh
+      - run:
+          name: Verify deployment status
+          command: |
+            export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID_LIVE}
+            export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY_LIVE}
+            echo "Wait for service to be stable..."
+            echo "Check status of the deployment here:"
+            echo "https://eu-west-1.console.aws.amazon.com/ecs/home?region=eu-west-1#/clusters/${CLUSTER}/services/${JOB_NAME}/deployments"
+            aws ecs wait services-stable --services ${JOB_NAME} --cluster ${CLUSTER} || exit 1
+            echo "Deployment successful..."
+
+workflows:
+  version: 2
+  build-deploy:
+    jobs:
+      - build-dev
+      - test-dev:
+          requires:
+            - build-dev
+      - build-live:
+          requires:
+            - build-dev
+            - test-dev
+          filters:
+            branches:
+              only: release/continuous
