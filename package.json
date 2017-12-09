@@ -1,0 +1,13 @@
+{
+  "name": "webapp",
+  "version": "0.0.1",
+  "description": "Webapp example for CD",
+  "author": "Marcin Taracha <marcin.m.taracha@gmail.com>",
+  "main": "server.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.16.1"
+  }
+}

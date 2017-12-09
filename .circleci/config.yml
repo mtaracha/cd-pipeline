@@ -4,7 +4,7 @@ jobs:
     working_directory: ~
     environment:
       - ENV: "dev"
-      - JOB_NAME: "websrv"
+      - JOB_NAME: "webapp"
       - CLUSTER: "frontend"
       - AWS_DEFAULT_REGION: "eu-west-1"
       - AWS_ACCOUNT_ID: "003425684339"
@@ -62,7 +62,7 @@ jobs:
     working_directory: ~
     environment:
       - ENV: "dev"
-      - JOB_NAME: "websrv"
+      - JOB_NAME: "webapp"
       - CLUSTER: "frontend"
       - AWS_DEFAULT_REGION: "eu-west-1"
       - AWS_ACCOUNT_ID: "003425684339"
